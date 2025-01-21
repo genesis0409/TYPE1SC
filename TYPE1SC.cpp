@@ -1663,7 +1663,7 @@ int TYPE1SC::socketSend(const char *str) {
 	((HEX_CHAR_TO_NIBBLE(h) << 4) + HEX_CHAR_TO_NIBBLE(l))
 int TYPE1SC::socketRecv(char *buffer, int bufferSize, int *recvSize) {
 	char szCmd[32];
-	char resBuffer[2048]; /* Max 1024 byte Receive */
+	char resBuffer[3072]; /* Max 1024 byte Receive */
 	int RecvSize, ret;
 	char *pszState = NULL;
 	char *pszState2 = NULL;
@@ -1674,7 +1674,7 @@ int TYPE1SC::socketRecv(char *buffer, int bufferSize, int *recvSize) {
 
 	memset(resBuffer, 0, sizeof(resBuffer));
 
-	sprintf(szCmd, "AT%%SOCKETDATA=\"RECEIVE\",%d,1000", _nSocket);
+	sprintf(szCmd, "AT%%SOCKETDATA=\"RECEIVE\",%d,1500", _nSocket);
 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "SOCKETDATA:", 20000);
 
 	if (!ret) {
