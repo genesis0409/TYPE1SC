@@ -75,48 +75,106 @@ void TYPE1SC::extAntON(uint8_t extAnt_pin) {
 	delay(1000);
 }
 
-int TYPE1SC::init() {
+// int TYPE1SC::init() {
+// 	char szCmd[128];
+// 	char resBuffer[16];
+// 	int cnt = 0;
+// 	int ret;
+
+// 	TYPE1SC_serial_clearbuf();
+
+// 	memset(resBuffer, 0, sizeof(resBuffer));
+// 	strcpy(szCmd, "AT");
+
+// CHK:
+// 	do {
+
+// 		ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
+
+// 		if (ret == 0)
+// 			break;
+
+// 	} while ( cnt++ < 20 );
+
+// 	if(ret){
+// 		/* Modem H/W Reset */
+// 		digitalWrite(_reset_pin, LOW);
+// 		delay(100);
+// 		digitalWrite(_reset_pin, HIGH);
+// 		delay(1000);
+// 		SWIR_TRACE(F("Modem Hardware Reset!!!\n"));
+// 		goto CHK;
+// 	}
+
+// 	SWIR_TRACE(F("AT -- OK Count : %d\n"),cnt);
+// 	strcpy(szCmd, "ATE0"); // Echo Off
+// 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
+
+// 	strcpy(szCmd, "AT+CEREG=2");
+// 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
+
+// 	strcpy(szCmd, "AT%CMATT=1"); // LTE Attach
+// 	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
+
+// 	return ret;
+// }
+
+// init() 함수의 무한루프 개선
+int TYPE1SC::init()
+{
 	char szCmd[128];
 	char resBuffer[16];
-	int cnt = 0;
+	const int MAX_TOTAL_ATTEMPTS = 3; // 전체 초기화 시도 횟수
+	const int MAX_AT_ATTEMPTS = 20;	  // AT 명령 시도 횟수
 	int ret;
 
-	TYPE1SC_serial_clearbuf();
+	for (int totalAttempts = 0; totalAttempts < MAX_TOTAL_ATTEMPTS; totalAttempts++)
+	{
+		TYPE1SC_serial_clearbuf();
+		memset(resBuffer, 0, sizeof(resBuffer));
+		strcpy(szCmd, "AT");
 
-	memset(resBuffer, 0, sizeof(resBuffer));
-	strcpy(szCmd, "AT");
+		// AT 명령어 시도
+		for (int atAttempts = 0; atAttempts < MAX_AT_ATTEMPTS; atAttempts++)
+		{
+			ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
+			if (ret == 0)
+			{
+				SWIR_TRACE(F("AT -- OK Count : %d\n"), atAttempts);
 
-CHK:
-	do {
+				// 추가 초기화 명령어들
+				int initRet = 0;
+				strcpy(szCmd, "ATE0"); // Echo Off
+				initRet += sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
 
-		ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
+				strcpy(szCmd, "AT+CEREG=2");
+				initRet += sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
 
-		if (ret == 0)
-			break;
+				strcpy(szCmd, "AT%CMATT=1"); // LTE Attach
+				initRet += sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
+				if (initRet != 0)
+				{
+					SWIR_TRACE(F("Additional AT commands failed\n"));
+					break; // 추가 명령어 실패시 H/W 리셋 시도
+				}
 
-	} while ( cnt++ < 20 );
+				return 0; // 모든 초기화 성공
+			}
+		}
 
-	if(ret){
-		/* Modem H/W Reset */
-		digitalWrite(_reset_pin, LOW);
-		delay(100);
-		digitalWrite(_reset_pin, HIGH);
-		delay(1000);
-		SWIR_TRACE(F("Modem Hardware Reset!!!\n"));
-		goto CHK;
+		// H/W 리셋 시도
+		if (totalAttempts < MAX_TOTAL_ATTEMPTS - 1)
+		{
+			digitalWrite(_reset_pin, LOW);
+			delay(100);
+			digitalWrite(_reset_pin, HIGH);
+			delay(1000);
+			SWIR_TRACE(F("Modem Hardware Reset!!! Attempt: %d\n"), totalAttempts + 1);
+		}
 	}
 
-	SWIR_TRACE(F("AT -- OK Count : %d\n"),cnt);
-	strcpy(szCmd, "ATE0"); // Echo Off
-	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
-
-	strcpy(szCmd, "AT+CEREG=2");
-	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
-
-	strcpy(szCmd, "AT%CMATT=1"); // LTE Attach
-	ret = sendATcmd(szCmd, resBuffer, sizeof(resBuffer), "OK", 3000);
-
-	return ret;
+	SWIR_TRACE(F("Modem initialization failed after %d attempts\n"), MAX_TOTAL_ATTEMPTS);
+	return -1; // 모든 시도 실패
 }
 
 int TYPE1SC::getCCLK(char *szCCLK, int nBufferSize) {
